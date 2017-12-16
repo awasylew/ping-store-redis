@@ -9,6 +9,8 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy import func
 from sqlalchemy import case, literal_column
 """
+import redis
+import json
 
 import random
 import datetime
@@ -27,6 +29,8 @@ if aw_testing:
 # else:     # redis-off
 #    db = SQLAlchemy(app)     # redis-off
 #    Base = db.Model            # redis-off
+
+redisconn=redis.Redis()
 
 """
 redis-off
@@ -68,7 +72,7 @@ pings  :A8:onet:20171216:8:34:6  -> PingResult{success:true, rtt:34.7}
 
 list_origins -> SET{A8,ESP}                     //ttl - jakie wygasanie?
 list_targets:A8  -> SET{onet,wp}                //ttl - wygasanie per origin?
-list_days:A8:onet ?????
+list_days:A8:onet -> SET{20171216,20171217}
 list_hours:A8:onet:20171216  -> SET{8,9,10}
 list_minutes:A8:onet:20171216:8  -> SET{2,4,6,8,10}
 
@@ -279,6 +283,30 @@ def add_ping(p):
     # kiedy walidacja wartości w polach?
     # kiedy walidacja JSON?
     db.session.add(p)
+
+"""
+PRZYPOMINAJKA
+hours  :A8:onet:20171216:8       -> PingAggregate{count:34, avg_rtt:16.67, ...}
+minutes:A8:onet:20171216:8:34    -> PingAggregate{count:34, avg_rtt:16.67, ...}
+pings  :A8:onet:20171216:8:34:6  -> PingResult{success:true, rtt:34.7}
+
+list_origins -> SET{A8,ESP}                     //ttl - jakie wygasanie?
+list_targets:A8  -> SET{onet,wp}                //ttl - wygasanie per origin?
+list_days:A8:onet -> SET{20171216,20171217}
+list_hours:A8:onet:20171216  -> SET{8,9,10}
+list_minutes:A8:onet:20171216:8  -> SET{2,4,6,8,10}
+
+może:
+list_pings:A8:onet:20171216:8:34 -> SET{2,4,6,8,10}
+"""
+def add_ping_redis(origin, target, date, hour, minute, second, success, rtt):
+    redisconn.set(origin+':'+target+':'+date+':'+hour+':'+minute+':'+second,
+        json.dumps({'success':success, 'rtt':rtt}))
+    redisconn.sadd('list_origins', origin)
+    redisconn.sadd('list_targets:'+origin, target)
+    redisconn.sadd('list_days:'+origin+':'+target, date)
+    redisconn.sadd('list_hours:'+origin+':'+target+':'+date, hour)
+    redisconn.sadd('list_minutes:'+origin+':'+target+':'+date+':'+hour, minute)
 
 @app.route('/pings', methods=['POST'])
 def ping_post_view():

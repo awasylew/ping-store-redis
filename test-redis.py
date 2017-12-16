@@ -13,7 +13,8 @@ class redis_store_testing(unittest.TestCase):
     def setUp(self):
         # redis-off test_session.expire_all() # to może niepotrzebne - pozostałośc z prób DELETE
         # problem: baza powinna być pusta na przed każdym testem; można zrobić co najmniej sprawdzenie, mocniej, ale ryzykowniej: czyszczenie
-        self.redis=redis.Redis()
+        # self.redis=redis.Redis()
+        self.redis=redis.StrictRedis('localhost', 6379, encoding="utf-8", decode_responses=True)
         self.redis.flushdb() # może trzeba tutaj wybrać nową bazę danych; może cała zawartość z krótkim TTL na wszelki wypadek?
 
     def tearDown(self):
@@ -32,10 +33,13 @@ class redis_store_testing(unittest.TestCase):
         test_session.add(self.p1)
         test_session.add(self.p2)
 
-    def prep1(self):   # wersja Redis
+    def prep_time(self):
         time=datetime.datetime.now()
         self.date=time.strftime('%Y%m%d')
         self.hour=time.strftime('%H')
+
+    def prep1(self):   # wersja Redis
+        self.prep_time()
         # self.p1 = PingResult(id=101, time=self.time+'0101', origin='o-101', \
         #     target='t-101', success=True, rtt=101)
         self.redis.set('pings:o-101:t-101:'+self.date+':'+self.hour+':1:1',
@@ -84,6 +88,7 @@ class redis_store_testing(unittest.TestCase):
         r = get_pings()
         self.assertEqual(r, [])
 
+    # czy w Redis to powinno budować całą strukturę wg hierarchii?
     def _test__get_pings__saute(self):
         """test: przykładowa baza danych, wywołanie bez ograniczenia, zwrócony wynik pełny"""
         self.prep1()
@@ -168,7 +173,7 @@ class redis_store_testing(unittest.TestCase):
         self.assertEqual(r, 'deleted!')
         self.assertEqual(test_session.query(PingResult).count(), 0)
 
-    def _test__add_ping__1(self):
+    def _test__add_ping(self):
         """test: pusta baza, wstawienie nowego, select wykazuje obecność nowego i tylko jego"""
         time = datetime.datetime.now().strftime('%Y%m%d%H')
         p = PingResult(id=201, time=time+'0101', origin='o-201', \
@@ -176,6 +181,16 @@ class redis_store_testing(unittest.TestCase):
         add_ping(p)
         p1 = test_session.query(PingResult).one()
         self.assertEqual(p1, p)
+
+    def test__add_ping(self):
+        self.prep_time()
+        add_ping_redis('o-201', 't-201', self.date, self.hour, '1', '1', True, 201)
+        self.assertIn('o-201', self.redis.smembers('list_origins'))
+        self.assertIn('t-201', self.redis.smembers('list_targets:o-201'))
+        self.assertIn(self.date, self.redis.smembers('list_days:o-201:t-201'))
+        self.assertIn(self.hour, self.redis.smembers('list_hours:o-201:t-201:'+self.date))
+        print(self.redis.smembers('list_miutes:o-201:t-201:'+self.date+':'+self.hour))
+        self.assertIn('1', self.redis.smembers('list_minutes:o-201:t-201:'+self.date+':'+self.hour))
 
     def _test__pings_delete__id_existing(self):
         """test: kasowanie wg id istniejącego"""
