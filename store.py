@@ -72,6 +72,10 @@ list_days:A8:onet ?????
 list_hours:A8:onet:20171216  -> SET{8,9,10}
 list_minutes:A8:onet:20171216:8  -> SET{2,4,6,8,10}
 
+może:
+list_pings:A8:onet:20171216:8:34 -> SET{2,4,6,8,10}
+
+
 ???
 update wszystkiego przy każdym pingu?
 """

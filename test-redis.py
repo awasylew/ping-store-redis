@@ -3,19 +3,25 @@ import unittest
 import datetime
 import copy
 
+import redis
+import json
+
 from store import *
 
 class redis_store_testing(unittest.TestCase):
 
     def setUp(self):
-        test_session.expire_all() # to może niepotrzebne - pozostałośc z prób DELETE
+        # redis-off test_session.expire_all() # to może niepotrzebne - pozostałośc z prób DELETE
         # problem: baza powinna być pusta na przed każdym testem; można zrobić co najmniej sprawdzenie, mocniej, ale ryzykowniej: czyszczenie
+        self.redis=redis.Redis()
+        self.redis.flushdb() # może trzeba tutaj wybrać nową bazę danych; może cała zawartość z krótkim TTL na wszelki wypadek?
 
     def tearDown(self):
-        test_session.rollback() # to może niepotrzebne - pozostałośc z prób DELETE
-        test_session.expire_all() # to może niepotrzebne - pozostałośc z prób DELETE
+        # redis-off test_session.rollback() # to może niepotrzebne - pozostałośc z prób DELETE
+        # redis-off test_session.expire_all() # to może niepotrzebne - pozostałośc z prób DELETE
+        pass
 
-    def prep1(self):
+    def _prep1(self):   # wersja SQLAlchemy
         self.time=datetime.datetime.now().strftime('%Y%m%d%H')
         self.p1 = PingResult(id=101, time=self.time+'0101', origin='o-101', \
             target='t-101', success=True, rtt=101)
@@ -26,6 +32,27 @@ class redis_store_testing(unittest.TestCase):
         test_session.add(self.p1)
         test_session.add(self.p2)
 
+    def prep1(self):   # wersja Redis
+        time=datetime.datetime.now()
+        self.date=time.strftime('%Y%m%d')
+        self.hour=time.strftime('%H')
+        # self.p1 = PingResult(id=101, time=self.time+'0101', origin='o-101', \
+        #     target='t-101', success=True, rtt=101)
+        self.redis.set('pings:o-101:t-101:'+self.date+':'+self.hour+':1:1',
+            json.dumps({'success':True, 'rtt':101}))
+        # self.p1d = self.p1.to_dict()
+        # self.p2 = PingResult(id=102, time=self.time+'0202', origin='o-102', \
+        #     target='t-102', success=True, rtt=102)
+        self.redis.set('pings:o-102:t-102:'+self.date+':'+self.hour+':2:2',
+            json.dumps({'success':True, 'rtt':102}))
+        # self.p2d = self.p2.to_dict()
+        # test_session.add(self.p1)
+        # test_session.add(self.p2)
+
+    def prep(self):
+        pass
+
+    # redis: nie ma sensu wg id - pewnie do usunięcia również w wersji db; albo działa w db, a w redis nie - ale jak wtedy ma reagować?
     def _test__get_pings_id__existing(self):
         """test: przykładowa baza danych, wywołanie z id istniejącym, zwrócony wynik wg id"""
         self.prep1()
@@ -34,12 +61,14 @@ class redis_store_testing(unittest.TestCase):
         self.assertEqual(r1, self.p1)
         self.assertEqual(r2, self.p2)
 
+    # redis: j.w.
     def _test__get_pings_id__nonexistent(self):
         """test: przykładowa baza danych, wywołanie z id nieistniejących, zwrócony wynik pusty"""
         self.prep1()
         r = get_pings_id(103)
         self.assertIsNone(r)
 
+    # redis: j.w.
     def _test__get_pings__id_existing(self):
         """test: przykładowa baza danych, wywołanie z id istniejącym, zwrócony wynik wg id"""
         self.prep1()
@@ -47,6 +76,7 @@ class redis_store_testing(unittest.TestCase):
         r = get_pings()
         self.assertEqual(r, [self.p1])
 
+    # redis: j.w.
     def _test__get_pings__id_nonexistent(self):
         """test: przykładowa baza danych, wywołanie z id nieistniejących, zwrócony wynik pusty"""
         self.prep1()
@@ -54,8 +84,8 @@ class redis_store_testing(unittest.TestCase):
         r = get_pings()
         self.assertEqual(r, [])
 
-    def _test__get_pings__no_id(self):
-        """test: przykładowa baza danych, wywołanie bez id, zwrócony wynik pełny"""
+    def _test__get_pings__saute(self):
+        """test: przykładowa baza danych, wywołanie bez ograniczenia, zwrócony wynik pełny"""
         self.prep1()
         request.args = {}
         r = get_pings()
