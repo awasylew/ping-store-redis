@@ -1,12 +1,14 @@
 ﻿from flask import Flask, request, url_for, jsonify, render_template
-from flask_sqlalchemy import SQLAlchemy
 
+"""
+from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy import Column, Integer, String, Boolean, Float
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy import func
 from sqlalchemy import case, literal_column
+"""
 
 import random
 import datetime
@@ -22,12 +24,13 @@ if aw_testing:
     Base = declarative_base()
     class Dummy: pass
     request = Dummy()
-else:
-    db = SQLAlchemy(app)
-    Base = db.Model
+# else:     # redis-off
+#    db = SQLAlchemy(app)     # redis-off
+#    Base = db.Model            # redis-off
 
+"""
+redis-off
 class PingResult(Base):
-    """główna treść bazy danych ping - wynik pojedynczego wywołania"""
 
     __tablename__ = 'ping_results'
 
@@ -45,6 +48,7 @@ class PingResult(Base):
         return {'id':self.id, 'time':str(self.time), \
             'origin':str(self.origin), 'target':str(self.target), \
             'success':self.success, 'rtt':self.rtt}
+"""
 
 """
 REDIS
