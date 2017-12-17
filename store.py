@@ -205,30 +205,27 @@ def get_pings_redis(origin, target, start=None, end=None, time_prefix=None):
     result = []
     days = kv.smembers('list_days:'+origin+':'+target)
     for day in days:
-        print(day)
         if (start is not None) and (day<start[:8]):
             continue
         if (end is not None) and (day>end[:8]):
             continue
-        if (time_prefix is not None) and (day!=time_prefix[:8]):
+        if (time_prefix is not None) and (day[:len(time_prefix)]!=time_prefix[:8]):
             continue
         hours = kv.smembers('list_hours:'+origin+':'+target+':'+day)
         for hour in hours:
-            print(hour)
             if (start is not None) and (day+hour<start[:10]):
                 continue
             if (end is not None) and (day+hour>end[:10]):
                 continue
-            if (time_prefix is not None) and (day+hour!=time_prefix[:10]):
+            if (time_prefix is not None) and ((day+hour)[:len(time_prefix)]!=time_prefix[:10]):
                 continue
             minutes = kv.smembers('list_minutes:'+origin+':'+target+':'+day+':'+hour)
             for minute in minutes:
-                print('m', minute)
                 if (start is not None) and (day+hour+minute<start[:12]):
                     continue
                 if (end is not None) and (day+hour+minute>end[:12]):
                     continue
-                if (time_prefix is not None) and (day+hour+minute!=time_prefix[:12]):
+                if (time_prefix is not None) and ((day+hour+minute)[:len(time_prefix)]!=time_prefix[:12]):
                     continue
                 ping = json.loads(kv.get('ping_results:'+origin+':'+target+':'+day+':'+hour+':'+minute))
                 second = ping['second']
@@ -237,7 +234,7 @@ def get_pings_redis(origin, target, start=None, end=None, time_prefix=None):
                     continue
                 if (end is not None) and (time>end):
                     continue
-                if (time_prefix is not None) and (time!=time_prefix):
+                if (time_prefix is not None) and (time[:len(time_prefix)]!=time_prefix):
                     continue
                 result.append({'origin':origin, 'target':target, 'time':time,
                     'success':ping['success'], 'rtt':ping['rtt']})
@@ -447,7 +444,7 @@ def get_targets_redis_view():
         links = []
         links.append({'rel':'pings', 'href':url_for('get_pings_redis_view', origin=origin, target=target, _external=True)})
         links.append({'rel':'minutes', 'href':url_for('get_minutes', origin=origin, target=target, _external=True)})
-        links.append({'rel':'hours', 'href':url_for('get_hours', origin=origin, target=target, _external=True)})
+        links.append({'rel':'hours', 'href':url_for('get_hours_redis_view', origin=origin, target=target, _external=True)})
         result.append({'target':target, 'links':links})
     return jsonify(result), 200
 
