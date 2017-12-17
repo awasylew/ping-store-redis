@@ -292,7 +292,6 @@ def add_ping(p):
     # kiedy walidacja JSON?
     db.session.add(p)
 
-# TODO usunąć sekundy albo przenieść do wnętrza ping result
 def add_ping_redis(origin, target, date, hour, minute, second, success, rtt):
     kv.sadd('list_origins', origin)
     kv.sadd('list_targets:'+origin, target)
@@ -337,8 +336,8 @@ def pings_delete():
 # REDIS hierarchia origins->targets->pingi/agregaty
 # origins -> {ESP, A8}
 # origins:1 -> ESP, origins:2 -> A8
-@app.route('/origins')
-def get_origins():
+#@app.route('/origins')
+def get_origins_view():
     """listuje wszystkie origins do wyboru"""
     """test: pusta baza, kilka wstawień, sprawdzenie wyniku na zgodność"""
     """test: j.w. tylko z warunkami"""
@@ -353,6 +352,15 @@ def get_origins():
         origin = i[0]     # i.origin?
         links = [{'rel':'targets', 'href':url_for('get_targets', origin=origin, _external=True)}]
             # url_for nie potrzebuje zabazy w scheme?
+        l.append({'origin':origin, 'links':links})
+    return jsonify(l), 200
+
+@app.route('/origins')
+def get_origins_redis_view():
+    origins = kv.smembers('list_origins')
+    l = []
+    for origin in origins:
+        links = [{'rel':'targets', 'href':url_for('get_targets', origin=origin, _external=True)}]
         l.append({'origin':origin, 'links':links})
     return jsonify(l), 200
 
