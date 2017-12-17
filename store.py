@@ -185,7 +185,6 @@ def get_pings():
     # jakies sortowanie?
     return q.all()
 
-
 def get_pings_redis(origin, target):
     result = []
     days = kv.smembers('list_days:'+origin+':'+target)
@@ -358,13 +357,13 @@ def get_origins_view():
 @app.route('/origins')
 def get_origins_redis_view():
     origins = kv.smembers('list_origins')
-    l = []
+    result = []
     for origin in origins:
-        links = [{'rel':'targets', 'href':url_for('get_targets', origin=origin, _external=True)}]
-        l.append({'origin':origin, 'links':links})
-    return jsonify(l), 200
+        links = [{'rel':'targets', 'href':url_for('get_targets_redis_view', origin=origin, _external=True)}]
+        result.append({'origin':origin, 'links':links})
+    return jsonify(result), 200
 
-@app.route('/targets')      # zmienić nazwę, bo jednak inna funkcja? routes? paths?
+#@app.route('/targets')      # zmienić nazwę, bo jednak inna funkcja? routes? paths?
 def get_targets():
     """listuje możliwe przejścia od origin do target"""
     """test: pusta baza, kilka wstawień, sprawdzenie wyniku na zgodność"""
@@ -384,6 +383,19 @@ def get_targets():
         links.append({'rel':'hours', 'href':url_for('get_hours', origin=origin, target=target, _external=True)})
         l.append({'target':target, 'links':links})
     return jsonify(l), 200
+
+@app.route('/targets')
+def get_targets_redis_view():
+    origin = request.args.get('origin')    # TODO musi być obecny
+    targets = kv.smembers('list_targets:'+origin)
+    result = []
+    for target in targets:
+        links = []
+        links.append({'rel':'pings', 'href':url_for('get_pings_view', origin=origin, target=target, _external=True)})
+        links.append({'rel':'minutes', 'href':url_for('get_minutes', origin=origin, target=target, _external=True)})
+        links.append({'rel':'hours', 'href':url_for('get_hours', origin=origin, target=target, _external=True)})
+        result.append({'target':target, 'links':links})
+    return jsonify(result), 200
 
 @app.route('/minutes')
 def get_minutes():
