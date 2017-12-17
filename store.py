@@ -195,10 +195,17 @@ def get_pings_redis(origin, target):
             for minute in minutes:
                 ping = json.loads(kv.get('ping_results:'+origin+':'+target+':'+day+':'+hour+':'+minute))
                 time = day+hour+minute+ping['second']
-                result.append({'time':time, 'success':ping['success'], 'rtt':ping['rtt']})
+                result.append({'origin':origin, 'target':target, 'time':time,
+                    'success':ping['success'], 'rtt':ping['rtt']})
     return result
 
 @app.route('/pings')
+def get_pings_redis_view():
+    origin = request.args.get('origin')    # TODO musi być podany
+    target = request.args.get('target')     # TODO musi być podany
+    return jsonify(get_pings_redis(origin, target)), 200
+
+#@app.route('/pings')
 def get_pings_view():
     pd = [i.to_dict() for i in get_pings()]
     return jsonify(pd), 200
@@ -391,7 +398,7 @@ def get_targets_redis_view():
     result = []
     for target in targets:
         links = []
-        links.append({'rel':'pings', 'href':url_for('get_pings_view', origin=origin, target=target, _external=True)})
+        links.append({'rel':'pings', 'href':url_for('get_pings_redis_view', origin=origin, target=target, _external=True)})
         links.append({'rel':'minutes', 'href':url_for('get_minutes', origin=origin, target=target, _external=True)})
         links.append({'rel':'hours', 'href':url_for('get_hours', origin=origin, target=target, _external=True)})
         result.append({'target':target, 'links':links})
