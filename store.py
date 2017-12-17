@@ -410,7 +410,7 @@ def get_minutes():
     """test: ..."""
     return get_periods('minute', 12)
 
-@app.route('/hours')
+#@app.route('/hours')
 def get_hours():
     """..."""
     """test: ..."""
@@ -450,6 +450,28 @@ def get_periods( period_name, prefix_len ):
             'links':[{'rel':'pings', 'href':url_for('get_pings_view', origin=origin, \
                 target=target, time_prefix=prefix, _external=True)}]})
     return jsonify(l), 200
+
+def get_hours_redis(origin, target):
+    hours = kv.smembers('list_hours:'+origin+':'+target)
+    result = []
+    days = kv.smembers('list_days:'+origin+':'+target)
+    for day in days:
+        hours = kv.smembers('list_hours:'+origin+':'+target+':'+day)
+        for hour in hours:
+            result.append({'origin':origin, 'target':target,
+                'hour':day+hour,
+                'count':1, 'count_success':2,
+                'avg_rtt':2.2, 'min_rtt':1.1, 'max_rtt':3.3,
+                'links':[{'rel':'pings', 'href':url_for('get_pings_redis_view',
+                    origin=origin, target=target, time_prefix=day+hour, _external=True)}]})
+    return result
+
+
+@app.route('/hours')
+def get_hours_redis_view():
+    origin = request.args.get('origin')    # TODO musi być podany
+    target = request.args.get('target')     # TODO musi być podany
+    return jsonify(get_hours_redis(origin, target)), 200
 
 @app.route('/')
 def root():
