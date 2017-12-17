@@ -30,7 +30,8 @@ if aw_testing:
 #    db = SQLAlchemy(app)     # redis-off
 #    Base = db.Model            # redis-off
 
-redisconn=redis.Redis()
+# kv czyli key-value podobnie do db
+kv=redis.StrictRedis(decode_responses=True)
 
 """
 redis-off
@@ -57,31 +58,24 @@ class PingResult(Base):
 """
 REDIS
 wartości w redis jako JSON
-id - niepotrzebne
-time - będzie z tego klucz; pojedyczny czy modularny? sprawdzić "keys EXP"
-origin - w wartości
-target - w wartości
+id - niestosowne; może trzeba odtworzyć dla kompatybilności?
+time - data/godzina/minuta tylko jako klucz; sekunda w wartości
+origin - tylko jako klucz
+target - tylko jako klucz
 sucess - w wartości
 rtt - w wartości
 
 
 inaczej:
-hours  :A8:onet:20171216:8       -> PingAggregate{count:34, avg_rtt:16.67, ...}
+hours:A8:onet:20171216:8       -> PingAggregate{count:34, avg_rtt:16.67, ...}
 minutes:A8:onet:20171216:8:34    -> PingAggregate{count:34, avg_rtt:16.67, ...}
-pings  :A8:onet:20171216:8:34:6  -> PingResult{success:true, rtt:34.7}
+ping_results:A8:onet:20171216:8:34:6  -> PingResult{success:true, rtt:34.7}
 
 list_origins -> SET{A8,ESP}                     //ttl - jakie wygasanie?
 list_targets:A8  -> SET{onet,wp}                //ttl - wygasanie per origin?
 list_days:A8:onet -> SET{20171216,20171217}
 list_hours:A8:onet:20171216  -> SET{8,9,10}
 list_minutes:A8:onet:20171216:8  -> SET{2,4,6,8,10}
-
-może:
-list_pings:A8:onet:20171216:8:34 -> SET{2,4,6,8,10}
-
-
-???
-update wszystkiego przy każdym pingu?
 """
 
 
@@ -191,6 +185,20 @@ def get_pings():
     # jakies sortowanie?
     return q.all()
 
+
+def get_pings_redis(origin, target):
+    result = []
+    days = kv.smembers('list_days:'+origin+':'+target)
+    for day in days:
+        hours = kv.smembers('list_hours:'+origin+':'+target+':'+day)
+        for hour in hours:
+            minutes = kv.smembers('list_minutes:'+origin+':'+target+':'+day+':'+hour)
+            for minute in minutes:
+                ping = json.loads(kv.get('ping_results:'+origin+':'+target+':'+day+':'+hour+':'+minute))
+                time = day+hour+minute+ping['second']
+                result.append({'time':time, 'success':ping['success'], 'rtt':ping['rtt']})
+    return result
+
 @app.route('/pings')
 def get_pings_view():
     pd = [i.to_dict() for i in get_pings()]
@@ -284,29 +292,17 @@ def add_ping(p):
     # kiedy walidacja JSON?
     db.session.add(p)
 
-"""
-PRZYPOMINAJKA
-hours  :A8:onet:20171216:8       -> PingAggregate{count:34, avg_rtt:16.67, ...}
-minutes:A8:onet:20171216:8:34    -> PingAggregate{count:34, avg_rtt:16.67, ...}
-pings  :A8:onet:20171216:8:34:6  -> PingResult{success:true, rtt:34.7}
-
-list_origins -> SET{A8,ESP}                     //ttl - jakie wygasanie?
-list_targets:A8  -> SET{onet,wp}                //ttl - wygasanie per origin?
-list_days:A8:onet -> SET{20171216,20171217}
-list_hours:A8:onet:20171216  -> SET{8,9,10}
-list_minutes:A8:onet:20171216:8  -> SET{2,4,6,8,10}
-
-może:
-list_pings:A8:onet:20171216:8:34 -> SET{2,4,6,8,10}
-"""
+# TODO usunąć sekundy albo przenieść do wnętrza ping result
 def add_ping_redis(origin, target, date, hour, minute, second, success, rtt):
-    redisconn.set(origin+':'+target+':'+date+':'+hour+':'+minute+':'+second,
-        json.dumps({'success':success, 'rtt':rtt}))
-    redisconn.sadd('list_origins', origin)
-    redisconn.sadd('list_targets:'+origin, target)
-    redisconn.sadd('list_days:'+origin+':'+target, date)
-    redisconn.sadd('list_hours:'+origin+':'+target+':'+date, hour)
-    redisconn.sadd('list_minutes:'+origin+':'+target+':'+date+':'+hour, minute)
+    kv.sadd('list_origins', origin)
+    kv.sadd('list_targets:'+origin, target)
+    kv.sadd('list_days:'+origin+':'+target, date)
+    kv.sadd('list_hours:'+origin+':'+target+':'+date, hour)
+    kv.sadd('list_minutes:'+origin+':'+target+':'+date+':'+hour, minute)
+    kv.set('ping_results:'+origin+':'+target+':'+date+':'+hour+':'+minute,
+        json.dumps({'second':second, 'success':success, 'rtt':rtt}))
+    # TODO ustawianie ttl
+    # TODO aktualizacja agregatów
 
 @app.route('/pings', methods=['POST'])
 def ping_post_view():

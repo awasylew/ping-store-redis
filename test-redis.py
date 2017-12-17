@@ -1,6 +1,7 @@
 import store
 import unittest
 import datetime
+from datetime import timedelta
 import copy
 
 import redis
@@ -14,13 +15,15 @@ class redis_store_testing(unittest.TestCase):
         # redis-off test_session.expire_all() # to może niepotrzebne - pozostałośc z prób DELETE
         # problem: baza powinna być pusta na przed każdym testem; można zrobić co najmniej sprawdzenie, mocniej, ale ryzykowniej: czyszczenie
         # self.redis=redis.Redis()
-        self.redis=redis.StrictRedis('localhost', 6379, encoding="utf-8", decode_responses=True)
+        # self.redis=redis.StrictRedis(decode_responses=True)
+        self.redis=kv # trochę dziwne: na wspólnym obiekcie działa znacznie szybciej
         self.redis.flushdb() # może trzeba tutaj wybrać nową bazę danych; może cała zawartość z krótkim TTL na wszelki wypadek?
 
     def tearDown(self):
         # redis-off test_session.rollback() # to może niepotrzebne - pozostałośc z prób DELETE
         # redis-off test_session.expire_all() # to może niepotrzebne - pozostałośc z prób DELETE
         pass
+        # self.redis.flushdb() sprzątanie po testach
 
     def _prep1(self):   # wersja SQLAlchemy
         self.time=datetime.datetime.now().strftime('%Y%m%d%H')
@@ -34,27 +37,40 @@ class redis_store_testing(unittest.TestCase):
         test_session.add(self.p2)
 
     def prep_time(self):
-        time=datetime.datetime.now()
-        self.date=time.strftime('%Y%m%d')
-        self.hour=time.strftime('%H')
+        self.time = datetime.datetime.now()
+        self.date = self.time.strftime('%Y%m%d')
+        self.hour = self.time.strftime('%H')
 
     def prep1(self):   # wersja Redis
         self.prep_time()
-        # self.p1 = PingResult(id=101, time=self.time+'0101', origin='o-101', \
-        #     target='t-101', success=True, rtt=101)
-        self.redis.set('pings:o-101:t-101:'+self.date+':'+self.hour+':1:1',
-            json.dumps({'success':True, 'rtt':101}))
-        # self.p1d = self.p1.to_dict()
-        # self.p2 = PingResult(id=102, time=self.time+'0202', origin='o-102', \
-        #     target='t-102', success=True, rtt=102)
-        self.redis.set('pings:o-102:t-102:'+self.date+':'+self.hour+':2:2',
-            json.dumps({'success':True, 'rtt':102}))
-        # self.p2d = self.p2.to_dict()
-        # test_session.add(self.p1)
-        # test_session.add(self.p2)
+        add_ping_redis('o-101', 't-101', self.date, self.hour, '01', '01', True, 101)
+        add_ping_redis('o-102', 't-102', self.date, self.hour, '02', '02', True, 102)
 
     def prep(self):
         pass
+
+    def dump_redis(self):
+        for k in self.redis.keys():
+            print(k, '-> ', end='')
+            if self.redis.type(k)=='string':
+                print(self.redis.get(k))
+            if self.redis.type(k)=='set':
+                print(self.redis.smembers(k))
+
+    def test__get(self):                                                # REDIS
+        self.prep_time()
+        add_ping_redis('o-101', 't-101', self.date, self.hour, '01', '01', True, 10.1)
+        add_ping_redis('o-101', 't-101', self.date, self.hour, '02', '02', True, 20.2)
+        time_1h = self.time+timedelta(hours=1)
+        date_1h = time_1h.strftime('%Y%m%d')
+        hour_1h = time_1h.strftime('%H')
+        add_ping_redis('o-101', 't-101', date_1h, hour_1h, '03', '03', True, 30.3)
+        time_1d = self.time+timedelta(days=1)
+        date_1d = time_1d.strftime('%Y%m%d')
+        hour_1d = time_1d.strftime('%H')
+        add_ping_redis('o-101', 't-101', date_1d, hour_1d, '04', '04', True, 40.4)
+        get_pings_redis('o-101', 't-101')
+        # TODO assert - ale jak to ładnie sprawdzić?
 
     # redis: nie ma sensu wg id - pewnie do usunięcia również w wersji db; albo działa w db, a w redis nie - ale jak wtedy ma reagować?
     def _test__get_pings_id__existing(self):
@@ -182,15 +198,19 @@ class redis_store_testing(unittest.TestCase):
         p1 = test_session.query(PingResult).one()
         self.assertEqual(p1, p)
 
-    def test__add_ping(self):
+    def test__add_ping(self):                                       # REDIS
         self.prep_time()
-        add_ping_redis('o-201', 't-201', self.date, self.hour, '1', '1', True, 201)
+        minute = '01'
+        second = '01'
+        add_ping_redis('o-201', 't-201', self.date, self.hour, minute, second, True, 201)
         self.assertIn('o-201', self.redis.smembers('list_origins'))
         self.assertIn('t-201', self.redis.smembers('list_targets:o-201'))
         self.assertIn(self.date, self.redis.smembers('list_days:o-201:t-201'))
         self.assertIn(self.hour, self.redis.smembers('list_hours:o-201:t-201:'+self.date))
-        print(self.redis.smembers('list_miutes:o-201:t-201:'+self.date+':'+self.hour))
-        self.assertIn('1', self.redis.smembers('list_minutes:o-201:t-201:'+self.date+':'+self.hour))
+        self.assertIn(minute, self.redis.smembers('list_minutes:o-201:t-201:'+self.date+':'+self.hour))
+        # self.dump_redis()
+        self.assertEqual(json.loads(self.redis.get('ping_results:o-201:t-201:'+self.date+':'+self.hour+':'+minute)),
+            {'second':second, 'success':True, 'rtt':201})
 
     def _test__pings_delete__id_existing(self):
         """test: kasowanie wg id istniejącego"""
