@@ -185,6 +185,7 @@ def get_pings():
     # jakies sortowanie?
     return q.all()
 
+"""
 def get_pings_redis(origin, target):
     result = []
     days = kv.smembers('list_days:'+origin+':'+target)
@@ -198,12 +199,58 @@ def get_pings_redis(origin, target):
                 result.append({'origin':origin, 'target':target, 'time':time,
                     'success':ping['success'], 'rtt':ping['rtt']})
     return result
+"""
+
+def get_pings_redis(origin, target, start=None, end=None, time_prefix=None):
+    result = []
+    days = kv.smembers('list_days:'+origin+':'+target)
+    for day in days:
+        print(day)
+        if (start is not None) and (day<start[:8]):
+            continue
+        if (end is not None) and (day>end[:8]):
+            continue
+        if (time_prefix is not None) and (day!=time_prefix[:8]):
+            continue
+        hours = kv.smembers('list_hours:'+origin+':'+target+':'+day)
+        for hour in hours:
+            print(hour)
+            if (start is not None) and (day+hour<start[:10]):
+                continue
+            if (end is not None) and (day+hour>end[:10]):
+                continue
+            if (time_prefix is not None) and (day+hour!=time_prefix[:10]):
+                continue
+            minutes = kv.smembers('list_minutes:'+origin+':'+target+':'+day+':'+hour)
+            for minute in minutes:
+                print('m', minute)
+                if (start is not None) and (day+hour+minute<start[:12]):
+                    continue
+                if (end is not None) and (day+hour+minute>end[:12]):
+                    continue
+                if (time_prefix is not None) and (day+hour+minute!=time_prefix[:12]):
+                    continue
+                ping = json.loads(kv.get('ping_results:'+origin+':'+target+':'+day+':'+hour+':'+minute))
+                second = ping['second']
+                time = day+hour+minute+ping['second']
+                if (start is not None) and (time<start):
+                    continue
+                if (end is not None) and (time>end):
+                    continue
+                if (time_prefix is not None) and (time!=time_prefix):
+                    continue
+                result.append({'origin':origin, 'target':target, 'time':time,
+                    'success':ping['success'], 'rtt':ping['rtt']})
+    return result
 
 @app.route('/pings')
 def get_pings_redis_view():
     origin = request.args.get('origin')    # TODO musi być podany
     target = request.args.get('target')     # TODO musi być podany
-    return jsonify(get_pings_redis(origin, target)), 200
+    start = request.args.get('start')       # opcjonalny, jeśli nie ma to None jest przekazywany do get_pings_redis
+    end = request.args.get('end')       # opcjonalny, jeśli nie ma to None jest przekazywany do get_pings_redis
+    time_prefix = request.args.get('time_prefix')       # opcjonalny, jeśli nie ma to None jest przekazywany do get_pings_redis
+    return jsonify(get_pings_redis(origin, target, start, end, time_prefix)), 200
 
 #@app.route('/pings')
 def get_pings_view():
