@@ -16,11 +16,13 @@ import random
 import datetime
 import os
 
+# REDIS - odpowiednikiem będzie dostęp do Redis, może ma sens wersja uogólniona? powinno dać się wybierać SQL albo Redis parametrem
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('STORE_DB')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SQLALCHEMY_ECHO'] = True
 
+# REDIS - oby nie było potrzeba takiej zabawy z Redis
 aw_testing = bool(os.getenv('aw_testing'))
 if aw_testing:
     Base = declarative_base()
@@ -35,6 +37,7 @@ kv=redis.StrictRedis(decode_responses=True)
 
 """
 redis-off
+REDIS a może jednak stosować strukturę (tę albo inną) do przekazywania danych
 class PingResult(Base):
 
     __tablename__ = 'ping_results'
@@ -58,14 +61,14 @@ class PingResult(Base):
 """
 REDIS
 wartości w redis jako JSON
-id - niestosowne; może trzeba odtworzyć dla kompatybilności?
+id - niestosowne; może trzeba odtworzyć dla kompatybilności? może wykorzystać tutaj jakieś przekształcenie klucza ping_result?
 time - data/godzina/minuta tylko jako klucz; sekunda w wartości
 origin - tylko jako klucz
 target - tylko jako klucz
 sucess - w wartości
 rtt - w wartości
 
-ping_results:A8:onet:20171216:08:34:6  -> PingResult{success:true, rtt:34.7}
+ping_result:A8:onet:20171216:08:34:6  -> PingResult{success:true, rtt:34.7}
 
 list_origins -> SET{A8,ESP}                     //ttl - jakie wygasanie?
 list_targets:A8  -> SET{onet,wp}                //ttl - wygasanie per origin?
@@ -80,9 +83,10 @@ hour_aggr:A8:onet:20171216:08:*
     :rtt_min (i/f)
     :rtt_max (i/f)
 
-godziny, minuty, senkundy - zawsze dwycyfrowe, z ew. zerem na początku
+godziny, minuty, sekundy - zawsze dwycyfrowe, z ew. zerem na początku
 """
 
+# REDIS nie będzie potrzeby
 if aw_testing:
     engine = create_engine(os.getenv('STORE_TEST_DB'), echo=False)
     Base.metadata.create_all(engine)
@@ -326,13 +330,13 @@ def pings_post_generic(args):
     return app.make_response((jsonify(p.to_dict()), 201, \
         {'Location':  url_for('get_pings_id_view', id=p.id, _scheme=scheme, _external=True)}))
 
-@app.route('/pings-old', methods=['POST'])
+#REDIS @app.route('/pings-old', methods=['POST'])
 def pings_post():
     """wstawienie pojedynczego pinga metodą POST"""
     """test: sprawdzenie, że parametry dobrze przechodzą przez treść POSTa???"""
     return pings_post_generic(request.json)
 
-@app.route('/pings-post')    # do testów, !!! ping-probe umie na razie tylko GET, już nieprawda
+#REDIS @app.route('/pings-post')    # do testów, !!! ping-probe umie na razie tylko GET, już nieprawda
 def pings_post_pseudo():
     # zmienić nazwę na pseudo_post_pings
     args = {k:request.args.get(k) for k in request.args}
@@ -347,6 +351,22 @@ def add_ping(p):
     # kiedy walidacja wartości w polach?
     # kiedy walidacja JSON?
     db.session.add(p)
+
+
+#REDIS @app.route('/pings-old', methods=['POST'])
+@app.route('/pings-post')
+def pings_post_redis_view():
+    # id = args.get('id')
+    args=request.args
+    time = args.get('time')
+    if time=="now":
+        time = datetime.datetime.now().strftime('%Y%m%d%H%M%S')
+    origin = args.get('origin')
+    target = args.get('target')
+    success = args.get('success')
+    rtt = args.get('rtt')
+    add_ping_redis(origin, target, time[0:8], time[8:10], time[10:12], time[12:14], success, rtt)
+    return 'posted!', 200
 
 def add_ping_redis(origin, target, date, hour, minute, second, success, rtt):
     # TODO ustawianie ttl
