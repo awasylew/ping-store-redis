@@ -65,19 +65,23 @@ target - tylko jako klucz
 sucess - w wartości
 rtt - w wartości
 
-
-inaczej:
-hours:A8:onet:20171216:8       -> PingAggregate{count:34, avg_rtt:16.67, ...}
-minutes:A8:onet:20171216:8:34    -> PingAggregate{count:34, avg_rtt:16.67, ...}
-ping_results:A8:onet:20171216:8:34:6  -> PingResult{success:true, rtt:34.7}
+ping_results:A8:onet:20171216:08:34:6  -> PingResult{success:true, rtt:34.7}
 
 list_origins -> SET{A8,ESP}                     //ttl - jakie wygasanie?
 list_targets:A8  -> SET{onet,wp}                //ttl - wygasanie per origin?
 list_days:A8:onet -> SET{20171216,20171217}
-list_hours:A8:onet:20171216  -> SET{8,9,10}
-list_minutes:A8:onet:20171216:8  -> SET{2,4,6,8,10}
-"""
+list_hours:A8:onet:20171216  -> SET{08,09,10}
+list_minutes:A8:onet:20171216:8  -> SET{04,06,08,10}
 
+hour_aggr:A8:onet:20171216:08:*
+    :count (integer)
+    :count_success (integer)
+    :rtt_sum (integer/float) - czy może pozostać taka niepewność co do typu?
+    :rtt_min (i/f)
+    :rtt_max (i/f)
+
+godziny, minuty, senkundy - zawsze dwycyfrowe, z ew. zerem na początku
+"""
 
 if aw_testing:
     engine = create_engine(os.getenv('STORE_TEST_DB'), echo=False)
@@ -201,6 +205,8 @@ def get_pings_redis(origin, target):
     return result
 """
 
+# ho, ho, ho - zrobić do tego unit testy!!!
+# najlepiej od razu takie, które pojadą dla wersji SQL i Redis jednocześnie
 def get_pings_redis(origin, target, start=None, end=None, time_prefix=None):
     result = []
     days = kv.smembers('list_days:'+origin+':'+target)
@@ -343,6 +349,8 @@ def add_ping(p):
     db.session.add(p)
 
 def add_ping_redis(origin, target, date, hour, minute, second, success, rtt):
+    # TODO ustawianie ttl
+
     kv.sadd('list_origins', origin)
     kv.sadd('list_targets:'+origin, target)
     kv.sadd('list_days:'+origin+':'+target, date)
@@ -350,8 +358,28 @@ def add_ping_redis(origin, target, date, hour, minute, second, success, rtt):
     kv.sadd('list_minutes:'+origin+':'+target+':'+date+':'+hour, minute)
     kv.set('ping_results:'+origin+':'+target+':'+date+':'+hour+':'+minute,
         json.dumps({'second':second, 'success':success, 'rtt':rtt}))
-    # TODO ustawianie ttl
-    # TODO aktualizacja agregatów
+
+    key = 'hour_aggr:'+origin+':'+target+':'+date+':'+hour
+    kv.incr(key+':count')
+    if success:
+        kv.incr(key+':count_success')
+    else:
+        kv.incrby(key+':count_success', 0)
+
+    kv.incrbyfloat(key+':rtt_sum', rtt)
+    rtt_min=kv.get(key+':rtt_min')
+    if rtt_min is None:
+        rtt_min=rtt
+    else:
+        rtt_min=min(float(rtt_min), float(rtt))
+    kv.set(key+':rtt_min', str(rtt_min))
+    rtt_max=kv.get(key+':rtt_max')
+    if rtt_max is None:
+        rtt_max=rtt
+    else:
+        rtt_max=max(float(rtt_max), float(rtt))
+    kv.set(key+':rtt_max', str(rtt_max))
+
 
 @app.route('/pings', methods=['POST'])
 def ping_post_view():

@@ -38,13 +38,13 @@ class redis_store_testing(unittest.TestCase):
 
     def prep_time(self):
         self.time = datetime.datetime.now()
-        self.date = self.time.strftime('%Y%m%d')
+        self.day = self.time.strftime('%Y%m%d')
         self.hour = self.time.strftime('%H')
 
     def prep1(self):   # wersja Redis
         self.prep_time()
-        add_ping_redis('o-101', 't-101', self.date, self.hour, '01', '01', True, 101)
-        add_ping_redis('o-102', 't-102', self.date, self.hour, '02', '02', True, 102)
+        add_ping_redis('o-101', 't-101', self.day, self.hour, '01', '01', True, 101)
+        add_ping_redis('o-102', 't-102', self.day, self.hour, '02', '02', True, 102)
 
     def prep(self):
         pass
@@ -57,10 +57,10 @@ class redis_store_testing(unittest.TestCase):
             if self.redis.type(k)=='set':
                 print(self.redis.smembers(k))
 
-    def test__get(self):                                                # REDIS
+    def _test__get(self):                                                # REDIS
         self.prep_time()
-        add_ping_redis('o-101', 't-101', self.date, self.hour, '01', '01', True, 10.1)
-        add_ping_redis('o-101', 't-101', self.date, self.hour, '02', '02', True, 20.2)
+        add_ping_redis('o-101', 't-101', self.day, self.hour, '01', '01', True, 10.1)
+        add_ping_redis('o-101', 't-101', self.day, self.hour, '02', '02', True, 20.2)
         time_1h = self.time+timedelta(hours=1)
         date_1h = time_1h.strftime('%Y%m%d')
         hour_1h = time_1h.strftime('%H')
@@ -70,7 +70,7 @@ class redis_store_testing(unittest.TestCase):
         hour_1d = time_1d.strftime('%H')
         add_ping_redis('o-101', 't-101', date_1d, hour_1d, '04', '04', True, 40.4)
         get_pings_redis('o-101', 't-101')
-        # TODO assert - ale jak to ładnie sprawdzić?
+        # TODO sprawdzenie wszystkich ciekawych kombinacji - ho, ho, ho
 
     # redis: nie ma sensu wg id - pewnie do usunięcia również w wersji db; albo działa w db, a w redis nie - ale jak wtedy ma reagować?
     def _test__get_pings_id__existing(self):
@@ -202,15 +202,69 @@ class redis_store_testing(unittest.TestCase):
         self.prep_time()
         minute = '01'
         second = '01'
-        add_ping_redis('o-201', 't-201', self.date, self.hour, minute, second, True, 201)
+        rtt = '201.125'
+        add_ping_redis('o-201', 't-201', self.day, self.hour, minute, second, True, rtt)
         self.assertIn('o-201', self.redis.smembers('list_origins'))
         self.assertIn('t-201', self.redis.smembers('list_targets:o-201'))
-        self.assertIn(self.date, self.redis.smembers('list_days:o-201:t-201'))
-        self.assertIn(self.hour, self.redis.smembers('list_hours:o-201:t-201:'+self.date))
-        self.assertIn(minute, self.redis.smembers('list_minutes:o-201:t-201:'+self.date+':'+self.hour))
+        self.assertIn(self.day, self.redis.smembers('list_days:o-201:t-201'))
+        self.assertIn(self.hour, self.redis.smembers('list_hours:o-201:t-201:'+self.day))
+        self.assertIn(minute, self.redis.smembers('list_minutes:o-201:t-201:'+self.day+':'+self.hour))
         # self.dump_redis()
-        self.assertEqual(json.loads(self.redis.get('ping_results:o-201:t-201:'+self.date+':'+self.hour+':'+minute)),
-            {'second':second, 'success':True, 'rtt':201})
+        self.assertEqual(json.loads(self.redis.get('ping_results:o-201:t-201:'+self.day+':'+self.hour+':'+minute)),
+            {'second':second, 'success':True, 'rtt':rtt})
+        key='hour_aggr:o-201:t-201:'+self.day+':'+self.hour
+        self.assertEqual(self.redis.get(key+':count'), '1')
+        self.assertEqual(self.redis.get(key+':count_success'), '1')
+        self.assertEqual(self.redis.get(key+':rtt_sum'), rtt)
+        self.assertEqual(self.redis.get(key+':rtt_min'), rtt)
+        self.assertEqual(self.redis.get(key+':rtt_max'), rtt)
+
+    def test__add_ping__success_false(self):
+        self.prep_time()
+        minute = '07'
+        second = '07'
+        add_ping_redis('o-201', 't-201', self.day, self.hour, minute, second, False, 201)
+        self.assertEqual(self.redis.get('hour_aggr:o-201:t-201:'+self.day+':'+self.hour+':count_success'), '0')
+
+    def test__add_ping__rtt_min_lower(self):
+        self.prep_time()
+        minute1 = '07'
+        minute2 = '12'
+        rtt1 = '210.215'
+        rtt2 = '105.105'
+        add_ping_redis('o-201', 't-201', self.day, self.hour, minute1, '05', True, rtt1)
+        add_ping_redis('o-201', 't-201', self.day, self.hour, minute2, '05', True, rtt2)
+        self.assertEqual(self.redis.get('hour_aggr:o-201:t-201:'+self.day+':'+self.hour+':rtt_min'), rtt2)
+
+    def test__add_ping__rtt_min_higher(self):
+        self.prep_time()
+        minute1 = '07'
+        minute2 = '12'
+        rtt1 = '105.105'
+        rtt2 = '210.215'
+        add_ping_redis('o-201', 't-201', self.day, self.hour, minute1, '05', True, rtt1)
+        add_ping_redis('o-201', 't-201', self.day, self.hour, minute2, '05', True, rtt2)
+        self.assertEqual(self.redis.get('hour_aggr:o-201:t-201:'+self.day+':'+self.hour+':rtt_min'), rtt1)
+
+    def test__add_ping__rtt_max_lower(self):
+        self.prep_time()
+        minute1 = '07'
+        minute2 = '12'
+        rtt1 = '210.215'
+        rtt2 = '105.105'
+        add_ping_redis('o-201', 't-201', self.day, self.hour, minute1, '05', True, rtt1)
+        add_ping_redis('o-201', 't-201', self.day, self.hour, minute2, '05', True, rtt2)
+        self.assertEqual(self.redis.get('hour_aggr:o-201:t-201:'+self.day+':'+self.hour+':rtt_max'), rtt1)
+
+    def test__add_ping__rtt_max_higher(self):
+        self.prep_time()
+        minute1 = '07'
+        minute2 = '12'
+        rtt1 = '105.105'
+        rtt2 = '210.215'
+        add_ping_redis('o-201', 't-201', self.day, self.hour, minute1, '05', True, rtt1)
+        add_ping_redis('o-201', 't-201', self.day, self.hour, minute2, '05', True, rtt2)
+        self.assertEqual(self.redis.get('hour_aggr:o-201:t-201:'+self.day+':'+self.hour+':rtt_max'), rtt2)
 
     def _test__pings_delete__id_existing(self):
         """test: kasowanie wg id istniejącego"""
