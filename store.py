@@ -193,22 +193,6 @@ def get_pings():
     # jakies sortowanie?
     return q.all()
 
-"""
-def get_pings_redis(origin, target):
-    result = []
-    days = kv.smembers('list_days:'+origin+':'+target)
-    for day in days:
-        hours = kv.smembers('list_hours:'+origin+':'+target+':'+day)
-        for hour in hours:
-            minutes = kv.smembers('list_minutes:'+origin+':'+target+':'+day+':'+hour)
-            for minute in minutes:
-                ping = json.loads(kv.get('ping_results:'+origin+':'+target+':'+day+':'+hour+':'+minute))
-                time = day+hour+minute+ping['second']
-                result.append({'origin':origin, 'target':target, 'time':time,
-                    'success':ping['success'], 'rtt':ping['rtt']})
-    return result
-"""
-
 # ho, ho, ho - zrobić do tego unit testy!!!
 # najlepiej od razu takie, które pojadą dla wersji SQL i Redis jednocześnie
 def get_pings_redis(origin, target, start=None, end=None, time_prefix=None):
