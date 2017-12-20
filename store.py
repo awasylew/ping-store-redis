@@ -482,12 +482,12 @@ def get_targets_redis_view():
     for target in targets:
         links = []
         links.append({'rel':'pings', 'href':url_for('get_pings_redis_view', origin=origin, target=target, _external=True)})
-        links.append({'rel':'minutes', 'href':url_for('get_minutes', origin=origin, target=target, _external=True)})
+        links.append({'rel':'minutes', 'href':url_for('get_minutes_redis_view', origin=origin, target=target, _external=True)})
         links.append({'rel':'hours', 'href':url_for('get_hours_redis_view', origin=origin, target=target, _external=True)})
         result.append({'target':target, 'links':links})
     return jsonify(result), 200
 
-@app.route('/minutes')
+#@app.route('/minutes')
 def get_minutes():
     """..."""
     """test: ..."""
@@ -535,7 +535,6 @@ def get_periods( period_name, prefix_len ):
     return jsonify(l), 200
 
 def get_hours_redis(origin, target):
-    hours = kv.smembers('list_hours:'+origin+':'+target)
     result = []
     days = kv.smembers('list_days:'+origin+':'+target)
     for day in days:
@@ -549,12 +548,38 @@ def get_hours_redis(origin, target):
                     origin=origin, target=target, time_prefix=day+hour, _external=True)}]})
     return result
 
+def all_minutes(origin, target):
+    for day in kv.smembers('list_days:'+origin+':'+target):
+        for hour in kv.smembers('list_hours:'+origin+':'+target+':'+day):
+            for minute in kv.smembers('list_minutes:'+origin+':'+target+':'+day+':'+hour):
+                yield (day, hour, minute)
+
+# może dodać ograniczenie na start/end/time-prefix
+# może zrobić skróty for+for -> yield
+def get_minutes_redis(origin, target):
+    result = []
+    for (day, hour, minute) in all_minutes(origin, target):
+        result.append({'origin':origin, 'target':target,
+            'minute':day+hour+minute,
+            'count':1, 'count_success':2,
+            'avg_rtt':2.2, 'min_rtt':1.1, 'max_rtt':3.3,
+            'links':[{'rel':'pings', 'href':url_for('get_pings_redis_view',
+                origin=origin, target=target, time_prefix=day+hour+minute, _external=True)}]})
+    return result
+
 
 @app.route('/hours')
 def get_hours_redis_view():
     origin = request.args.get('origin')    # TODO musi być podany
     target = request.args.get('target')     # TODO musi być podany
     return jsonify(get_hours_redis(origin, target)), 200
+
+@app.route('/minutes')
+def get_minutes_redis_view():
+    origin = request.args.get('origin')    # TODO musi być podany
+    target = request.args.get('target')     # TODO musi być podany
+    return jsonify(get_minutes_redis(origin, target)), 200
+
 
 @app.route('/')
 def root():
