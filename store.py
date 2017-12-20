@@ -561,6 +561,7 @@ def all_minutes(origin, target):
 
 # może dodać ograniczenie na start/end/time-prefix
 # może zrobić skróty for+for -> yield
+# PROBLEM: nie ma danych do agregatów minutowych!!!
 def get_minutes_redis(origin, target):
     result = []
     for (day, hour, minute) in all_minutes(origin, target):

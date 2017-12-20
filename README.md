@@ -1,5 +1,5 @@
 ## TODO wdrażanie REDIS
-# prawdziwe wyniki w agregatach hours i minutes 15
+# prawdziwe wyniki w agregatach hours (done) i minutes 15
 # przetestowanie ręczne z ping-show w pełnym zakresie 10
 # sprawdzenie ping-proble
 # deployment na heroku
