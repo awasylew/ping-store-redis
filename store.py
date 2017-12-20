@@ -540,10 +540,15 @@ def get_hours_redis(origin, target):
     for day in days:
         hours = kv.smembers('list_hours:'+origin+':'+target+':'+day)
         for hour in hours:
+            key='hour_aggr:'+origin+':'+target+':'+day+':'+hour
             result.append({'origin':origin, 'target':target,
-                'hour':day+hour,
-                'count':1, 'count_success':2,
-                'avg_rtt':2.2, 'min_rtt':1.1, 'max_rtt':3.3,
+                'hour': day+hour,
+                'count': int(kv.get(key+':count')),
+                'count_success': int(kv.get(key+':count_success')),
+                'avg_rtt': float(kv.get(key+':rtt_sum'))/
+                    int(kv.get(key+':count_success')),
+                'min_rtt': float(kv.get(key+':rtt_min')),
+                'max_rtt': float(kv.get(key+':rtt_max')),
                 'links':[{'rel':'pings', 'href':url_for('get_pings_redis_view',
                     origin=origin, target=target, time_prefix=day+hour, _external=True)}]})
     return result
@@ -561,7 +566,8 @@ def get_minutes_redis(origin, target):
     for (day, hour, minute) in all_minutes(origin, target):
         result.append({'origin':origin, 'target':target,
             'minute':day+hour+minute,
-            'count':1, 'count_success':2,
+            'count': 1,
+            'count_success':2,
             'avg_rtt':2.2, 'min_rtt':1.1, 'max_rtt':3.3,
             'links':[{'rel':'pings', 'href':url_for('get_pings_redis_view',
                 origin=origin, target=target, time_prefix=day+hour+minute, _external=True)}]})
