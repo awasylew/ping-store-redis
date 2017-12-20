@@ -107,20 +107,27 @@ def make_database():
     db.create_all()
     return 'db created!', 200
 
-# REDIS: może pozostać, zapewnić zapis niezależny od magazynu
+# REDIS - przerobione na wersję Redis, wymagany merge z SQL i test
 @app.route('/sample-results')
 def sample_results():
     """wstawienie przykładowych wyników ping (wartości losowe, czas bieżący)"""
     """bez testowania, bo to metoda nieprodukcyjna"""
-    time=datetime.datetime.now().strftime('%Y%m%d%H%M%S')
     for i in range(100):
+        time=(datetime.datetime.now()-datetime.timedelta(minutes=i)).strftime('%Y%m%d%H%M%S')
         rtt = float(random.randrange(50))/10
         if rtt < 0.2:
-            rtt = 0.0
+            rtt = None
+        """ REDIS-off
         # dlaczego tutaj używamy post zamiast session.add?
         pings_post_generic({'origin':'sample-'+random.choice(['a', 'b', 'c']), \
             'target':'sample-'+random.choice(['1', '2', '3']), \
-            'success':bool(rtt>0), 'rtt':rtt if rtt>0 else None, 'time':time})
+            'success':bool(rtt>0) rtt is not None, 'rtt':rtt ::if rtt>0 else None::, 'time':time})
+        """
+        add_ping_redis(origin='sample-'+random.choice(['a', 'b', 'c']),
+            target='sample-'+random.choice(['1', '2', '3']),
+            day=time[0:8], hour=time[8:10], minute=time[10:12], second=time[12:14],
+            success=(rtt is not None),
+            rtt=rtt)
     return 'posted!', 200
 
 # REDIS: choroba... cała ta konstrukcja ścieśle nastawiona na SQLAlchemy
@@ -352,38 +359,38 @@ def pings_post_redis_view():
     add_ping_redis(origin, target, time[0:8], time[8:10], time[10:12], time[12:14], success, rtt)
     return 'posted!', 200
 
-def add_ping_redis(origin, target, date, hour, minute, second, success, rtt):
+def add_ping_redis(origin, target, day, hour, minute, second, success, rtt):
     # TODO ustawianie ttl
 
     kv.sadd('list_origins', origin)
     kv.sadd('list_targets:'+origin, target)
-    kv.sadd('list_days:'+origin+':'+target, date)
-    kv.sadd('list_hours:'+origin+':'+target+':'+date, hour)
-    kv.sadd('list_minutes:'+origin+':'+target+':'+date+':'+hour, minute)
-    kv.set('ping_results:'+origin+':'+target+':'+date+':'+hour+':'+minute,
+    kv.sadd('list_days:'+origin+':'+target, day)
+    kv.sadd('list_hours:'+origin+':'+target+':'+day, hour)
+    kv.sadd('list_minutes:'+origin+':'+target+':'+day+':'+hour, minute)
+    kv.set('ping_results:'+origin+':'+target+':'+day+':'+hour+':'+minute,
         json.dumps({'second':second, 'success':success, 'rtt':rtt}))
 
-    key = 'hour_aggr:'+origin+':'+target+':'+date+':'+hour
+    key = 'hour_aggr:'+origin+':'+target+':'+day+':'+hour
     kv.incr(key+':count')
     if success:
         kv.incr(key+':count_success')
     else:
         kv.incrby(key+':count_success', 0)
 
-    kv.incrbyfloat(key+':rtt_sum', rtt)
-    rtt_min=kv.get(key+':rtt_min')
-    if rtt_min is None:
-        rtt_min=rtt
-    else:
-        rtt_min=min(float(rtt_min), float(rtt))
-    kv.set(key+':rtt_min', str(rtt_min))
-    rtt_max=kv.get(key+':rtt_max')
-    if rtt_max is None:
-        rtt_max=rtt
-    else:
-        rtt_max=max(float(rtt_max), float(rtt))
-    kv.set(key+':rtt_max', str(rtt_max))
-
+    if rtt is not None:
+        kv.incrbyfloat(key+':rtt_sum', rtt)
+        rtt_min=kv.get(key+':rtt_min')
+        if rtt_min is None:
+            rtt_min=rtt
+        else:
+            rtt_min=min(float(rtt_min), float(rtt))
+        kv.set(key+':rtt_min', str(rtt_min))
+        rtt_max=kv.get(key+':rtt_max')
+        if rtt_max is None:
+            rtt_max=rtt
+        else:
+            rtt_max=max(float(rtt_max), float(rtt))
+        kv.set(key+':rtt_max', str(rtt_max))
 
 @app.route('/pings', methods=['POST'])
 def ping_post_view():

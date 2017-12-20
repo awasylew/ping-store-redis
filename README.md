@@ -1,5 +1,4 @@
 ## TODO wdrażanie REDIS
-# zadziałanie sample_results
 # przetestowanie ręczne z ping-show w pełnym zakresie
 # pełny przegląd co zrobić z parametrami zapytań SQL
 # testy dla rozbudowanego get_pings_redis
@@ -12,10 +11,12 @@
 # zautomatyzowana budowa środowiska
 # wszystkie wcześniejsze testy SQL działają na Redis
 # implementacja metod delete
+# paczkowanie/transakcje
 
 ## TODO merge REDIS + SQL
 # porządkowanie zdublowanych metod SQL na styku z Flask (pseudo, ...)
 # struktury danych PingResult i sensowne+jednolite przekazywanie parametrów/wyników
+# podejście do time vs day/hour/minute/second
 # SQL przechodzi wszystkie testy Redis
 # łączenie lub porządkowanie testów
 # uniezależnianie testów od magazynu
