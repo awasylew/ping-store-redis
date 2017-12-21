@@ -33,7 +33,11 @@ if aw_testing:
 #    Base = db.Model            # redis-off
 
 # kv czyli key-value podobnie do db
-kv=redis.StrictRedis(decode_responses=True)
+
+redis_url = os.getenv('REDIS_URL', 'redis://localhost:6379')
+kv = redis.from_url(redis_url, decode_responses=True)
+
+#kv=redis.StrictRedis(decode_responses=True)
 
 """
 redis-off
