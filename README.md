@@ -1,7 +1,5 @@
 ## TODO wdrażanie REDIS
-# prawdziwe wyniki w agregatach hours (done) i minutes 15
-# przetestowanie ręczne z ping-show w pełnym zakresie 10
-# sprawdzenie ping-proble
+# sprawdzenie ping-probe
 # deployment na heroku
 # test długotrwały probe-chmura
 # pełny przegląd co zrobić z parametrami zapytań SQL
@@ -13,6 +11,7 @@
 # wszystkie wcześniejsze testy SQL działają na Redis
 # implementacja metod delete
 # paczkowanie/transakcje
+# wyniki w agregatach minutes???
 
 ## TODO merge REDIS + SQL
 # porządkowanie zdublowanych metod SQL na styku z Flask (pseudo, ...)

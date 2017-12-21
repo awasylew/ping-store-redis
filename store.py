@@ -392,7 +392,7 @@ def add_ping_redis(origin, target, day, hour, minute, second, success, rtt):
             rtt_max=max(float(rtt_max), float(rtt))
         kv.set(key+':rtt_max', str(rtt_max))
 
-@app.route('/pings', methods=['POST'])
+# redis @app.route('/pings', methods=['POST'])
 def ping_post_view():
     j = request.get_json(force=True) # brak obsługi błędów formatu #force z powodu zappa@lambda
     # dozwolony brak id, brak pozostałych spowoduje błąd
@@ -404,6 +404,21 @@ def ping_post_view():
         target=j['target'], success=j['success'], rtt=j['rtt'])
     add_ping(p)
     db.session.commit()
+    return 'posted!'
+
+@app.route('/pings', methods=['POST'])
+def ping_post_redis_view():
+    j = request.get_json(force=True) # brak obsługi błędów formatu #force z powodu zappa@lambda
+    # dozwolony brak id, brak pozostałych spowoduje błąd
+    if j['time'] == 'now':
+        time = datetime.datetime.now().strftime('%Y%m%d%H%M%S')
+    else:
+        time = j['time']
+    add_ping_redis(origin=j['origin'], target=j['target'],
+        day=time[0:8], hour=time[8:10], minute=time[10:12], second=time[12:14],
+        success=j['success'], rtt=j['rtt'])
+    # add_ping(p)
+    # db.session.commit()
     return 'posted!'
 
 # REDIS: usuwanie logów czy agregatów czy both?
