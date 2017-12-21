@@ -1,6 +1,6 @@
 ## TODO wdrażanie REDIS
-# sprawdzenie ping-probe
-# deployment na heroku
+# usuwanie wszystkich pingów na pierwszej stronie
+# dodanie usuwania pingów w wersji Redis
 # test długotrwały probe-chmura
 # pełny przegląd co zrobić z parametrami zapytań SQL
 # testy dla rozbudowanego get_pings_redis
