@@ -560,9 +560,9 @@ def get_periods( period_name, prefix_len ):
 
 def get_hours_redis(origin, target):
     result = []
-    days = kv.smembers('list_days:'+origin+':'+target)
+    days = sorted(kv.smembers('list_days:'+origin+':'+target))
     for day in days:
-        hours = kv.smembers('list_hours:'+origin+':'+target+':'+day)
+        hours = sorted(kv.smembers('list_hours:'+origin+':'+target+':'+day))
         for hour in hours:
             key='hour_aggr:'+origin+':'+target+':'+day+':'+hour
             result.append({'origin':origin, 'target':target,
@@ -582,6 +582,7 @@ def all_minutes(origin, target):
         for hour in kv.smembers('list_hours:'+origin+':'+target+':'+day):
             for minute in kv.smembers('list_minutes:'+origin+':'+target+':'+day+':'+hour):
                 yield (day, hour, minute)
+                # ta wersja na razie bez sortowania, ale chyba całośc bez sensu
 
 # może dodać ograniczenie na start/end/time-prefix
 # może zrobić skróty for+for -> yield
