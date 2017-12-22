@@ -1,5 +1,6 @@
 ## TODO wdrażanie REDIS
-# sortowanie wyników wg czasu - ale gdzie?
+# obsługa braków wartości na niższym poziomie
+# obsługa niepełnych wartości (np. w godzinie tylko nieudane pingi, to jaki średni czas? również w show)
 # dodanie usuwania pingów (metody DELETE)
 # pełny przegląd co zrobić z parametrami zapytań SQL
 # testy dla rozbudowanego get_pings_redis

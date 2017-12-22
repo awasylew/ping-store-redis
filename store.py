@@ -565,7 +565,7 @@ def get_hours_redis(origin, target):
         hours = sorted(kv.smembers('list_hours:'+origin+':'+target+':'+day))
         for hour in hours:
             key='hour_aggr:'+origin+':'+target+':'+day+':'+hour
-            result.append({'origin':origin, 'target':target,
+            result.append({'origin':origin, 'target':target,          # może brakowac w całości lub niektórych pól
                 'hour': day+hour,
                 'count': int(kv.get(key+':count')),
                 'count_success': int(kv.get(key+':count_success')),
