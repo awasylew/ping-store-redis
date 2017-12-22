@@ -122,7 +122,7 @@ def sample_results():
     """wstawienie przykładowych wyników ping (wartości losowe, czas bieżący)"""
     """bez testowania, bo to metoda nieprodukcyjna"""
     for i in range(100):
-        time=(datetime.datetime.now()-datetime.timedelta(minutes=i)).strftime('%Y%m%d%H%M%S')
+        time=(datetime.datetime.now()-datetime.timedelta(minutes=i*10)).strftime('%Y%m%d%H%M%S')
         rtt = float(random.randrange(50))/10
         if rtt < 0.2:
             rtt = None
@@ -213,7 +213,7 @@ def get_pings():
 # najlepiej od razu takie, które pojadą dla wersji SQL i Redis jednocześnie
 def get_pings_redis(origin, target, start=None, end=None, time_prefix=None):
     result = []
-    days = kv.smembers('list_days:'+origin+':'+target)
+    days = sorted(kv.smembers('list_days:'+origin+':'+target))  # może być pusty/może nie istnieć
     for day in days:
         if (start is not None) and (day<start[:8]):
             continue
@@ -221,7 +221,7 @@ def get_pings_redis(origin, target, start=None, end=None, time_prefix=None):
             continue
         if (time_prefix is not None) and (day[:len(time_prefix)]!=time_prefix[:8]):
             continue
-        hours = kv.smembers('list_hours:'+origin+':'+target+':'+day)
+        hours = sorted(kv.smembers('list_hours:'+origin+':'+target+':'+day))   # może być pusty/może nie istnieć
         for hour in hours:
             if (start is not None) and (day+hour<start[:10]):
                 continue
@@ -229,7 +229,7 @@ def get_pings_redis(origin, target, start=None, end=None, time_prefix=None):
                 continue
             if (time_prefix is not None) and ((day+hour)[:len(time_prefix)]!=time_prefix[:10]):
                 continue
-            minutes = kv.smembers('list_minutes:'+origin+':'+target+':'+day+':'+hour)
+            minutes = sorted(kv.smembers('list_minutes:'+origin+':'+target+':'+day+':'+hour))  # może być pusty/może nie istnieć
             for minute in minutes:
                 if (start is not None) and (day+hour+minute<start[:12]):
                     continue
@@ -237,7 +237,7 @@ def get_pings_redis(origin, target, start=None, end=None, time_prefix=None):
                     continue
                 if (time_prefix is not None) and ((day+hour+minute)[:len(time_prefix)]!=time_prefix[:12]):
                     continue
-                ping = json.loads(kv.get('ping_results:'+origin+':'+target+':'+day+':'+hour+':'+minute))
+                ping = json.loads(kv.get('ping_results:'+origin+':'+target+':'+day+':'+hour+':'+minute))  # może nie istnieć
                 second = ping['second']
                 time = day+hour+minute+ping['second']
                 if (start is not None) and (time<start):
