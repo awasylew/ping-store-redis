@@ -111,6 +111,11 @@ def make_database():
     db.create_all()
     return 'db created!', 200
 
+@app.route('/flushdb')
+def flush_db():
+    kv.flushdb()
+    return 'db flushed!', 200
+
 # REDIS - przerobione na wersję Redis, wymagany merge z SQL i test
 @app.route('/sample-results')
 def sample_results():
