@@ -387,6 +387,7 @@ def add_ping_redis(origin, target, day, hour, minute, second, success, rtt):
         kv.incrby(key+':count_success', 0)
 
     if rtt is not None:
+	print( key+':rtt_sum', rtt )
         kv.incrbyfloat(key+':rtt_sum', rtt)
         rtt_min=kv.get(key+':rtt_min')
         if rtt_min is None:
